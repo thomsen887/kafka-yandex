@@ -13,6 +13,7 @@
 | `kafka-connect/` | Содержит Dockerfile и настройки JMX‑экспортера для Kafka Connect (`kafka-connect.yml` и `jmx_prometheus_javaagent-0.19.0.jar`).  Папка `confluent-hub-components` включает плагин Debezium для PostgreSQL. |
 | `prometheus/prometheus.yml` | Конфигурация Prometheus, которая собирает собственные метрики и метрики Kafka Connect. |
 | `grafana/` | Настройки Grafana: datasource указывает на Prometheus, а дешборд `connect.json` отображает состояние коннекторов. |
+| `consumer/` | Консьюмер на golang |
 | `connector.json` | JSON‑конфигурация коннектора Debezium, отслеживающего только таблицы `users` и `orders` в базе `demo_db`. |
 
 
@@ -92,8 +93,9 @@ Prometheus с помощью scrape‑конфигурации `kafka-connect` 
 ## ✅ Проверка работоспособности
 
 1. После регистрации коннектора в REST API убедитесь, что его состояние `RUNNING` и количество запущенных задач равно `1`.
-2. Сгенерируйте новые события в PostgreSQL — сделайте INSERT/UPDATE/DELETE в таблицах `users` или `orders`.  В консоли потребителя `consume.py` должны появиться JSON‑сообщения с изменениями.
+2. Сгенерируйте новые события в PostgreSQL — сделайте INSERT/UPDATE/DELETE в таблицах `users` или `orders`. 
 3. В Grafana на дешборде `Connect` наблюдайте рост счётчиков обработанных записей и отсутствие ошибок.
+4. Запустите consumer для получения сообщений из топика. 
 
 После завершения работы можно остановить контейнеры командой:
 
