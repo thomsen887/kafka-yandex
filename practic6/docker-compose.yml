@@ -1,0 +1,141 @@
+x-kafka-common: &kafka-common
+  image: bitnami/kafka:3.9.0
+  networks: [kafka-network]
+  environment: &kafka-env
+    KAFKA_ENABLE_KRAFT: "yes"
+    KAFKA_KRAFT_CLUSTER_ID: abcdefghijklmnopqrstuv
+    KAFKA_CFG_PROCESS_ROLES: broker,controller
+    KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka-0:9093,1@kafka-1:9093,2@kafka-2:9093
+
+# === ПРОТОКОЛЫ НА ЛИСТЕНЕРАХ ===
+# Все три listener'а в TLS: SASL_SSL
+    KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:SASL_SSL,INTERNAL:SASL_SSL,EXTERNAL:SASL_SSL
+    KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+# === SASL-МЕХАНИЗМЫ (PLAIN для KRaft) ===
+    KAFKA_CFG_SASL_MECHANISM_CONTROLLER_PROTOCOL: PLAIN
+    KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+    KAFKA_CFG_SASL_ENABLED_MECHANISMS: PLAIN
+
+# === ПОЛЬЗОВАТЕЛИ (пусть один и тот же для простоты) ===
+# Bitnami сам сгенерит server-side JAAS на листенерах и client JAAS-файл
+# === SASL: разные логины/пароли по ролям ===
+    KAFKA_CONTROLLER_USER: controller
+    KAFKA_CONTROLLER_PASSWORD: controller-secret
+
+    KAFKA_INTER_BROKER_USER: broker
+    KAFKA_INTER_BROKER_PASSWORD: broker-secret
+
+    KAFKA_CLIENT_USERS: admin,producer,consumer
+    KAFKA_CLIENT_PASSWORDS: admin-secret,producer-secret,consumer-secret
+
+    KAFKA_CFG_SUPER_USERS: "User:admin;User:broker;User:controller"
+
+# === TLS (общие ключ/траст для всех listener'ов) ===
+    KAFKA_CFG_SSL_KEYSTORE_LOCATION: /bitnami/kafka/config/certs/kafka.keystore.jks
+    KAFKA_CFG_SSL_KEYSTORE_PASSWORD: changeit
+    KAFKA_CFG_SSL_KEY_PASSWORD: changeit
+    KAFKA_CFG_SSL_KEYSTORE_TYPE: JKS
+    KAFKA_CFG_SSL_TRUSTSTORE_LOCATION: /bitnami/kafka/config/certs/kafka.truststore.jks
+    KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD: changeit
+    KAFKA_CFG_SSL_TRUSTSTORE_TYPE: JKS
+
+# === TLS для контр. кворума (клиентская часть RAFT) ===
+    KAFKA_CFG_CONTROLLER_QUORUM_SECURITY_PROTOCOL: SASL_SSL
+    KAFKA_CFG_CONTROLLER_QUORUM_SASL_MECHANISM: PLAIN
+# truststore для клиента RAFT (отдельные ключи именно с префиксом controller.quorum.ssl.*!)
+    KAFKA_CFG_CONTROLLER_QUORUM_SSL_TRUSTSTORE_LOCATION: /bitnami/kafka/config/certs/kafka.truststore.jks
+    KAFKA_CFG_CONTROLLER_QUORUM_SSL_TRUSTSTORE_PASSWORD: changeit
+    KAFKA_CFG_CONTROLLER_QUORUM_SSL_TRUSTSTORE_TYPE: JKS
+# если в сертификатах НЕТ SAN на "kafka-0/1/2", чтобы не упасть на проверке имени, можно отключить проверку:
+    KAFKA_CFG_CONTROLLER_QUORUM_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: ""
+
+# === АВТОРИЗАЦИЯ ===
+    KAFKA_CFG_AUTHORIZER_CLASS_NAME: org.apache.kafka.metadata.authorizer.StandardAuthorizer
+    KAFKA_CFG_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "false"
+
+    KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+services:
+  kafka-0:
+    <<: *kafka-common
+    container_name: kafka-0
+    hostname: kafka-0
+    ports: ["9094:9094"]
+    environment:
+      <<: *kafka-env
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka-0:9092,EXTERNAL://10.19.21.58:9094
+    volumes:
+      - kafka_0_data:/bitnami/kafka
+      - ./certs/kafka-0/keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks:ro
+      - ./certs/truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks:ro
+
+  kafka-1:
+    <<: *kafka-common
+    container_name: kafka-1
+    hostname: kafka-1
+    ports: ["9095:9095"]
+    environment:
+      <<: *kafka-env
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9095
+      KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka-1:9092,EXTERNAL://10.19.21.58:9095
+    volumes:
+      - kafka_1_data:/bitnami/kafka
+      - ./certs/kafka-1/keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks:ro
+      - ./certs/truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks:ro
+
+  kafka-2:
+    <<: *kafka-common
+    container_name: kafka-2
+    hostname: kafka-2
+    ports: ["9096:9096"]
+    environment:
+      <<: *kafka-env
+      KAFKA_CFG_NODE_ID: 2
+      KAFKA_CFG_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9096
+      KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://kafka-2:9092,EXTERNAL://10.19.21.58:9096
+    volumes:
+      - kafka_2_data:/bitnami/kafka
+      - ./certs/kafka-2/keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks:ro
+      - ./certs/truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks:ro
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kafka-kraft
+    # Можно ходить на EXTERNAL (хост:порт) — как у тебя
+      KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: 10.19.21.58:9094,10.19.21.58:9095,10.19.21.58:9096
+
+    # Безопасность клиента
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+      KAFKA_CLUSTERS_0_PROPERTIES_SASL_MECHANISM: PLAIN
+      KAFKA_CLUSTERS_0_PROPERTIES_SASL_JAAS_CONFIG: >
+        org.apache.kafka.common.security.plain.PlainLoginModule
+        required username="admin" password="admin-secret";
+
+    # Доверяем серверным сертификатам брокеров
+      KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/truststore.jks
+      KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD: changeit
+
+    # Если CN/SAN сертификата не совпадает с хостом (часто так),
+    # выключи проверку имени (иначе UI может не подключиться):
+      KAFKA_CLUSTERS_0_PROPERTIES_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: ""
+    volumes:
+      - ./certs/truststore.jks:/etc/kafka/secrets/truststore.jks:ro
+    networks:
+      - kafka-network
+
+volumes:
+  kafka_0_data:
+  kafka_1_data:
+  kafka_2_data:
+
+networks:
+  kafka-network:
+    driver: bridge
