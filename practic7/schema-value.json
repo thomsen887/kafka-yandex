@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "value_v1",
+  "fields": [
+    { "name": "name", "type": "string" },
+    { "name": "city", "type": "string" },
+    { "name": "age", "type": "int" }
+  ]
+}

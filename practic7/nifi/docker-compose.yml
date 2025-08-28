@@ -1,0 +1,11 @@
+services:
+  nifi:
+    image: apache/nifi:1.26.0
+    container_name: nifi
+    ports:
+      - "8080:8080"
+    environment:
+      - NIFI_WEB_HTTP_PORT=8080
+    volumes:
+      - /home/etomsen/kafka-yandex/practic7/nifi/certs:/opt/nifi/nifi-current/certs
+    restart: unless-stopped
